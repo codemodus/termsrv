@@ -1,0 +1,61 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<style>
+  .terminal {
+    margin: 0px;
+    width: 800px;
+    height: 480px;
+    background-color: #000;
+    border: 1px solid #000;
+    color: #00ff00;
+    padding: 8px; 
+    font-family: courier new;
+    font-size: medium;
+    font-weight: bold;
+  }
+  
+  .menu {
+    width: 800px;
+    display: flex;
+    justify-content: center;
+  }
+</style>
+<script type="text/javascript">
+function stopWS(state) {
+    var e = new CustomEvent('close-ws', { detail: state });
+    window.dispatchEvent(e);
+}
+
+function startWS() {
+  var ws = new WebSocket("ws://localhost:4286/ws/term");
+  var ta = document.getElementById("textarea1");
+
+  ws.onmessage = function (e) {
+    ta.value = ta.value + "\n" + e.data;
+    ta.scrollTop = ta.scrollHeight;
+  };
+
+  ws.onclose = function() {
+    ta.value = ta.value + "\n" + "Connection closed";
+    ta.scrollTop = ta.scrollHeight;
+  };
+
+  window.addEventListener('close-ws', function () {
+    ws.close();
+  });
+
+  window.addEventListener("beforeunload", function () {
+    ws.close();
+  });
+}
+</script>
+</head>
+<body>
+<textarea id="textarea1" class="terminal"></textarea>
+<div class="menu">
+  <button onclick="javascript:startWS()">Subscribe</button>
+  <button onclick="javascript:stopWS()">Unsubscribe</button>
+</div>
+</body>
+</html>
