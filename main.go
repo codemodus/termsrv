@@ -1,61 +1,64 @@
 package main
 
 import (
-	"fmt"
-	"log"
+	"context"
 	"net/http"
 	"os"
+	"path"
+	"time"
 
+	"github.com/codemodus/sigmon"
 	_ "github.com/codemodus/termsrv/statik"
-	"github.com/gorilla/websocket"
 	"github.com/hpcloud/tail"
-	"github.com/rakyll/statik/fs"
 )
 
 func main() {
-	ug := &websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
-	}
-
-	mq, err := newMsgq()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer mq.close()
-
-	http.HandleFunc("/ws/term", wsHandler(ug, mq))
-
-	sfs, err := fs.New()
-	if err != nil {
-		log.Fatal(err)
-	}
-	hfs := http.FileServer(sfs)
-
-	http.Handle("/", hfs)
-
-	go func() {
-		t, err := tail.TailFile("/tmp/scriptit", tail.Config{Follow: true})
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		for l := range t.Lines {
-			if !mq.send([]byte(l.Text)) {
-				fmt.Println("gone!")
-			}
-		}
-	}()
-
-	if err := http.ListenAndServe(":4286", nil); err != nil {
-		fmt.Println(err)
+	if err := run(); err != nil {
+		cmd := path.Base(os.Args[0])
+		logError(cmd, err)
+		os.Exit(1)
 	}
 }
 
-func logError(msg string, err error) {
-	fmt.Fprintf(os.Stderr, msg+": %s\n", err) //nolint
+func run() error {
+	sm := sigmon.New(nil)
+	sm.Start()
+	defer sm.Stop()
+
+	es, err := newElements()
+	if err != nil {
+		return err
+	}
+	defer es.close()
+
+	sm.Set(func(s *sigmon.State) {
+		scp := "while handling a system signal"
+
+		if err := es.t.Stop(); err != nil {
+			logError(scp, err)
+		}
+
+		sc, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		if err := es.srv.Shutdown(sc); err != nil {
+			logError(scp, err)
+		}
+	})
+
+	go feedQ(es.mq, es.t)
+
+	if err := es.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return err
+	}
+
+	return nil
+}
+
+func feedQ(mq *msgq, t *tail.Tail) {
+	for l := range t.Lines {
+		if !mq.send([]byte(l.Text)) {
+			logError("mq is gone!", nil)
+		}
+	}
 }
