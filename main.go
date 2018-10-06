@@ -48,6 +48,7 @@ func run() error {
 
 	go feedQ(es.mq, es.t)
 
+	logInfof("serving on %s\n", es.srv.Addr)
 	if err := es.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return err
 	}
