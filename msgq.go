@@ -46,10 +46,11 @@ func (mq *msgq) close() {
 
 func (mq *msgq) send(bs []byte) bool {
 	select {
-	case mq.c <- bs:
-		return true
 	case <-mq.done:
 		return false
+	default:
+		mq.c <- bs
+		return true
 	}
 }
 
