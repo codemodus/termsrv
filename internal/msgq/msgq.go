@@ -1,23 +1,30 @@
-package main
+package msgq
 
 import (
+	"fmt"
 	"sync"
 )
+
+type Scanner interface {
+	Scan() bool
+	Err() error
+	Bytes() []byte
+}
 
 type bond struct {
 	c    chan []byte
 	done chan struct{}
 }
 
-type msgq struct {
+type Msgq struct {
 	c    chan []byte
 	mu   *sync.Mutex
 	q    []bond
 	done chan struct{}
 }
 
-func newMsgq() (*msgq, error) {
-	mq := msgq{
+func New() (*Msgq, error) {
+	mq := Msgq{
 		c:    make(chan []byte),
 		mu:   &sync.Mutex{},
 		q:    make([]bond, 0),
@@ -40,11 +47,11 @@ func newMsgq() (*msgq, error) {
 	return &mq, nil
 }
 
-func (mq *msgq) close() {
+func (mq *Msgq) Close() {
 	close(mq.done)
 }
 
-func (mq *msgq) send(bs []byte) bool {
+func (mq *Msgq) Send(bs []byte) bool {
 	select {
 	case <-mq.done:
 		return false
@@ -54,7 +61,7 @@ func (mq *msgq) send(bs []byte) bool {
 	}
 }
 
-func (mq *msgq) distribute(v []byte) {
+func (mq *Msgq) distribute(v []byte) {
 	mq.mu.Lock()
 	defer mq.mu.Unlock()
 
@@ -63,7 +70,7 @@ func (mq *msgq) distribute(v []byte) {
 	}
 }
 
-func (mq *msgq) attach(done chan struct{}) (chan []byte, error) {
+func (mq *Msgq) Attach(done chan struct{}) (chan []byte, error) {
 	b := bond{
 		c:    make(chan []byte),
 		done: done,
@@ -89,4 +96,17 @@ func (mq *msgq) attach(done chan struct{}) (chan []byte, error) {
 	}()
 
 	return b.c, nil
+}
+
+func (mq *Msgq) Feed(sc Scanner) error {
+	for sc.Scan() {
+		if !mq.Send(sc.Bytes()) {
+			return fmt.Errorf("mq is gone")
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return fmt.Errorf("feed ended with error: %s", err)
+	}
+
+	return nil
 }

@@ -3,10 +3,11 @@ package main
 import (
 	"net/http"
 
+	"github.com/codemodus/termsrv/internal/msgq"
 	"github.com/gorilla/websocket"
 )
 
-func wsHandler(ug *websocket.Upgrader, mq *msgq) http.HandlerFunc {
+func wsHandler(ug *websocket.Upgrader, mq *msgq.Msgq) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cx, err := ug.Upgrade(w, r, nil)
 		if err != nil {
@@ -24,7 +25,7 @@ func wsHandler(ug *websocket.Upgrader, mq *msgq) http.HandlerFunc {
 		done := make(chan struct{})
 		defer close(done)
 
-		c, err := mq.attach(done)
+		c, err := mq.Attach(done)
 		if err != nil {
 			logAcsError("cannot attach to message queue", err)
 			return

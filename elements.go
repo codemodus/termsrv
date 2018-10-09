@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/codemodus/termsrv/internal/msgq"
+	"github.com/codemodus/termsrv/internal/tail"
 	"github.com/codemodus/veva"
 	"github.com/gorilla/websocket"
-	"github.com/hpcloud/tail"
 	"github.com/rakyll/statik/fs"
 )
 
 type elements struct {
-	mq   *msgq
+	mq   *msgq.Msgq
 	t    *tail.Tail
 	srv  *http.Server
 	done chan struct{}
@@ -36,16 +37,16 @@ func newElements() (*elements, error) {
 
 	ug := newWebsocketUpgrader()
 
-	mq, err := newMsgq()
+	mq, err := msgq.New()
 	if err != nil {
 		return fin(nil, err)
 	}
 	go func() {
 		<-done
-		mq.close()
+		mq.Close()
 	}()
 
-	t, err := tail.TailFile("/tmp/scriptit", tail.Config{Follow: true})
+	t, err := tail.New("/tmp/scriptit")
 	if err != nil {
 		return fin(nil, err)
 	}

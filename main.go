@@ -9,7 +9,6 @@ import (
 
 	"github.com/codemodus/sigmon"
 	_ "github.com/codemodus/termsrv/statik"
-	"github.com/hpcloud/tail"
 )
 
 func main() {
@@ -46,7 +45,11 @@ func run() error {
 		}
 	})
 
-	go feedQ(es.mq, es.t)
+	go func() {
+		if err := es.mq.Feed(es.t); err != nil {
+			logError("feed failure", err)
+		}
+	}()
 
 	logInfof("serving on %s\n", es.srv.Addr)
 	if err := es.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -54,12 +57,4 @@ func run() error {
 	}
 
 	return nil
-}
-
-func feedQ(mq *msgq, t *tail.Tail) {
-	for l := range t.Lines {
-		if !mq.send([]byte(l.Text)) {
-			logError("mq is gone!", nil)
-		}
-	}
 }
