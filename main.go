@@ -1,11 +1,9 @@
 package main
 
 import (
-	"context"
 	"net/http"
 	"os"
 	"path"
-	"time"
 
 	"github.com/codemodus/sigmon"
 	_ "github.com/codemodus/termsrv/statik"
@@ -30,20 +28,7 @@ func run() error {
 	}
 	defer es.close()
 
-	sm.Set(func(s *sigmon.State) {
-		scp := "while handling a system signal"
-
-		if err := es.t.Stop(); err != nil {
-			logError(scp, err)
-		}
-
-		sc, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
-
-		if err := es.srv.Shutdown(sc); err != nil {
-			logError(scp, err)
-		}
-	})
+	sm.Set(es.term)
 
 	go func() {
 		if err := es.mq.Feed(es.t); err != nil {
@@ -56,5 +41,6 @@ func run() error {
 		return err
 	}
 
+	logInfof("goodbye\n")
 	return nil
 }

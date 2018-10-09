@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/codemodus/sigmon"
 	"github.com/codemodus/termsrv/internal/msgq"
 	"github.com/codemodus/termsrv/internal/tail"
 	"github.com/codemodus/veva"
@@ -76,6 +79,21 @@ func newElements() (*elements, error) {
 
 func (es *elements) close() {
 	safeClose(es.done)
+}
+
+func (es *elements) term(s *sigmon.State) {
+	scp := "while handling a system signal"
+
+	if err := es.t.Stop(); err != nil {
+		logError(scp, err)
+	}
+
+	sc, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	if err := es.srv.Shutdown(sc); err != nil {
+		logError(scp, err)
+	}
 }
 
 func newWebsocketUpgrader() *websocket.Upgrader {
