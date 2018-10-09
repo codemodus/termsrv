@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"path"
+	"time"
 
 	"github.com/codemodus/sigmon"
 	_ "github.com/codemodus/termsrv/statik"
@@ -28,19 +30,41 @@ func run() error {
 	}
 	defer es.close()
 
-	sm.Set(es.term)
+	sm.Set(func(s *sigmon.State) {
+		scp := "system signal handling abnormal"
+
+		sc, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		if err := es.srv.Shutdown(sc); err != nil {
+			logError(scp, err)
+		}
+
+		sm.Stop()
+	})
 
 	go func() {
 		if err := es.mq.Feed(es.t); err != nil {
-			logError("feed failure", err)
+			scp := "feed goroutine abnormal"
+			logError(scp, err)
+
+			sm.Stop()
+
+			sc, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+
+			if err := es.srv.Shutdown(sc); err != nil {
+				logError(scp, err)
+			}
 		}
 	}()
 
 	logInfof("serving on %s\n", es.srv.Addr)
+	defer logInfof("server on %s is closed\n", es.srv.Addr)
+
 	if err := es.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return err
 	}
 
-	logInfof("goodbye\n")
 	return nil
 }

@@ -1,12 +1,9 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net/http"
-	"time"
 
-	"github.com/codemodus/sigmon"
 	"github.com/codemodus/termsrv/internal/msgq"
 	"github.com/codemodus/termsrv/internal/tail"
 	"github.com/codemodus/veva"
@@ -27,9 +24,11 @@ func newElements() (*elements, error) {
 	fin := func(es *elements, err error) (*elements, error) {
 		if err != nil {
 			safeClose(done)
+
+			return nil, fmt.Errorf("cannot create *elements: %s", err)
 		}
 
-		return es, err
+		return es, nil
 	}
 
 	sfs, err := fs.New()
@@ -55,6 +54,7 @@ func newElements() (*elements, error) {
 	}
 	go func() {
 		<-done
+		t.Stop() //nolint
 		t.Cleanup()
 	}()
 
@@ -74,26 +74,11 @@ func newElements() (*elements, error) {
 		done: done,
 	}
 
-	return &es, nil
+	return fin(&es, nil)
 }
 
 func (es *elements) close() {
 	safeClose(es.done)
-}
-
-func (es *elements) term(s *sigmon.State) {
-	scp := "while handling a system signal"
-
-	if err := es.t.Stop(); err != nil {
-		logError(scp, err)
-	}
-
-	sc, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	if err := es.srv.Shutdown(sc); err != nil {
-		logError(scp, err)
-	}
 }
 
 func newWebsocketUpgrader() *websocket.Upgrader {
@@ -107,13 +92,9 @@ func newWebsocketUpgrader() *websocket.Upgrader {
 }
 
 func newHTTPServer(host, port string, h http.Handler) (*http.Server, error) {
-	we := func(err error) error {
-		return fmt.Errorf("cannot create new http server: %s", err)
-	}
-
 	p, err := veva.Port(port)
 	if err != nil {
-		return nil, we(err)
+		return nil, fmt.Errorf("cannot create *http.Server: %s", err)
 	}
 
 	s := http.Server{
