@@ -8,15 +8,17 @@ import (
 )
 
 func wsHandler(ug *websocket.Upgrader, mq *msgq.Msgq) http.HandlerFunc {
+	scp := "websocket endpoint malfunction"
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		cx, err := ug.Upgrade(w, r, nil)
 		if err != nil {
-			logAcsError("cannot upgrade connection", err)
+			logError(scp, err)
 			return
 		}
 		defer func() {
 			if err = cx.Close(); err != nil {
-				logAcsError("cannot close connection", err)
+				logError(scp, err)
 			}
 		}()
 
@@ -27,21 +29,21 @@ func wsHandler(ug *websocket.Upgrader, mq *msgq.Msgq) http.HandlerFunc {
 
 		c, err := mq.Attach(done)
 		if err != nil {
-			logAcsError("cannot attach to message queue", err)
+			logError(scp, err)
 			return
 		}
 
 		go func() {
 			for v := range c {
 				if werr := cx.WriteMessage(websocket.TextMessage, v); werr != nil {
-					logAcsError("cannot write to connection", werr)
+					logError(scp, err)
 				}
 			}
 		}()
 
 		if _, _, rerr := cx.ReadMessage(); rerr != nil {
 			if !websocket.IsCloseError(rerr, websocket.CloseNormalClosure, websocket.CloseNoStatusReceived) {
-				logAcsError("connection close error", rerr)
+				logError(scp, err)
 			}
 		}
 	}

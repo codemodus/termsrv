@@ -25,11 +25,6 @@ func logError(msg string, err error) {
 	fmt.Fprintf(os.Stderr, ": %s\n", err) //nolint
 }
 
-func logAcsError(msg string, err error) {
-	msg = "while accessing http endpoint: " + msg
-	logError(msg, err)
-}
-
 func safeClose(c chan struct{}) {
 	select {
 	case <-c:
