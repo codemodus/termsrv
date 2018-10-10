@@ -7,7 +7,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/codemodus/sigmon"
+	"github.com/codemodus/sigmon/v2"
 	_ "github.com/codemodus/termsrv/statik"
 )
 
